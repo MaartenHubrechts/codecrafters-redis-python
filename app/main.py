@@ -2,6 +2,8 @@ import re
 import socket
 import threading
 
+redis_store = {}
+
 
 def process_ping(conn: socket.socket):
     conn.send("+PONG\r\n".encode())
@@ -9,6 +11,19 @@ def process_ping(conn: socket.socket):
 
 def process_echo(conn: socket.socket, msg: str):
     conn.send(f"+{msg}\r\n".encode())
+
+
+def process_set(conn: socket.socket, key: str, val: str):
+    redis_store[key] = val
+    conn.send("+OK\r\n".encode())
+
+
+def process_get(conn: socket.socket, key: str):
+    response = redis_store.get(key, False)
+    if response:
+        conn.send(f"${len(response)}\r\n{response}\r\n".encode())
+    else:
+        conn.send("$-1\r\n")
 
 
 def resp_parser(conn: socket.socket, message: str):
@@ -23,6 +38,12 @@ def resp_parser(conn: socket.socket, message: str):
         elif commands[0] == "ECHO":
             process_echo(conn, commands[1])
             commands = commands[2:]
+        elif commands[0] == "GET":
+            process_get(conn, commands[1])
+            commands = commands[2:]
+        elif commands[0] == "SET":
+            process_set(conn, commands[1], commands[2])
+            commands = commands[3:]
         else:
             commands = commands[1:]
 
